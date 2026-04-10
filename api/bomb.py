@@ -508,7 +508,7 @@ async def root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-        <title>XKYROSC - ULTRA FAST SMS BOMBER</title>
+        <title>xueey</title>
         <style>
             * {
                 margin: 0;
@@ -782,14 +782,14 @@ async def root():
             </div>
             
             <div class="input-group">
-                <label class="input-label">⚡ Parallel Batches (5-20 = Faster)</label>
+                <label class="input-label">⚡ Speed (5-20 = Faster)</label>
                 <input type="number" id="parallel" class="input-field" value="5" min="1" max="20">
             </div>
             
             <div class="speed-stats">
                 <span>⚡ Speed: <span id="speedEstimate">ULTRA</span></span>
                 <span>📨 ~<span id="smsEstimate">1100</span> SMS/batch</span>
-                <span>🚀 Parallel: <span id="parallelShow">10</span>x</span>
+                <span>🚀 Speed: <span id="parallelShow">5</span>x</span>
             </div>
             
             <div class="warning">
