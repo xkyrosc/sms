@@ -783,7 +783,7 @@ async def root():
             
             <div class="input-group">
                 <label class="input-label">⚡ Parallel Batches (5-20 = Faster)</label>
-                <input type="number" id="parallel" class="input-field" value="10" min="1" max="20">
+                <input type="number" id="parallel" class="input-field" value="5" min="1" max="20">
             </div>
             
             <div class="speed-stats">
