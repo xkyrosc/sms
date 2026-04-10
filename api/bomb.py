@@ -698,12 +698,12 @@ async def root():
             </div>
             
             <div class="input-group">
-                <label class="input-label">🔢 Number of Batches (Max 500)</label>
-                <input type="number" id="amount" class="input-field" value="50" min="1" max="500">
+                <label class="input-label">🔢 Number of Batches (Max 50,000)</label>
+                <input type="number" id="amount" class="input-field" value="100" min="1" max="50000" placeholder="1-50000">
             </div>
             
             <div class="warning">
-                ⚠️ Warning: Use responsibly. Each batch sends ~11 SMS. Keep batches reasonable (50-100) to avoid rate limiting.
+                ⚠️ Warning: Use responsibly. Each batch sends ~11 SMS. Max 50,000 batches (approx 550,000 SMS). Recommended: 100-1000 batches.
             </div>
             
             <button id="startBtn" class="btn btn-primary" onclick="startAttack()">💣 START BOMBING</button>
@@ -734,7 +734,8 @@ async def root():
             <div class="log-area" id="logArea">
                 <div class="log-entry">✨ XKYROSC SMS Bomber Ready</div>
                 <div class="log-entry">📡 Status: Online</div>
-                <div class="log-entry">💡 Enter target number and start bombing</div>
+                <div class="log-entry">💡 Max limit: 50,000 batches</div>
+                <div class="log-entry">⚠️ Each batch sends ~11 SMS to target</div>
             </div>
         </div>
         
@@ -769,8 +770,8 @@ async def root():
                     return;
                 }
                 
-                if (amount < 1 || amount > 500) {
-                    addLog('❌ Batches must be between 1 and 500', 'error');
+                if (amount < 1 || amount > 50000) {
+                    addLog('❌ Batches must be between 1 and 50000', 'error');
                     return;
                 }
                 
@@ -782,9 +783,10 @@ async def root():
                 document.getElementById('amount').disabled = true;
                 document.getElementById('progressContainer').style.display = 'block';
                 
+                const totalSMS = amount * 11;
                 addLog(`🎯 Target: ${phone}`, 'success');
-                addLog(`📊 Batches: ${amount} (Approx ${amount * 11} SMS)`, 'info');
-                addLog(`💣 Starting attack...`, 'info');
+                addLog(`📊 Batches: ${amount.toLocaleString()} (Approx ${totalSMS.toLocaleString()} SMS)`, 'info');
+                addLog(`💣 Starting massive attack...`, 'info');
                 
                 try {
                     const response = await fetch('/api/start', {
@@ -830,17 +832,18 @@ async def root():
                     const status = await response.json();
                     
                     // Update stats
-                    document.getElementById('successCount').innerText = status.success;
-                    document.getElementById('failCount').innerText = status.failed;
-                    document.getElementById('totalCount').innerText = status.success + status.failed;
+                    document.getElementById('successCount').innerText = status.success.toLocaleString();
+                    document.getElementById('failCount').innerText = status.failed.toLocaleString();
+                    document.getElementById('totalCount').innerText = (status.success + status.failed).toLocaleString();
                     
                     // Update progress
                     const progress = (status.current_batch / status.total_batches) * 100;
                     document.getElementById('progressFill').style.width = progress + '%';
-                    document.getElementById('progressText').innerHTML = `Batch ${status.current_batch}/${status.total_batches} - ${Math.round(progress)}%`;
+                    document.getElementById('progressText').innerHTML = `Batch ${status.current_batch.toLocaleString()}/${status.total_batches.toLocaleString()} - ${Math.round(progress)}%`;
                     
                     if (!status.is_running && status.current_batch === status.total_batches) {
-                        addLog(`✨ Attack completed! Success: ${status.success}, Failed: ${status.failed}`, 'success');
+                        addLog(`✨ Attack completed! Success: ${status.success.toLocaleString()}, Failed: ${status.failed.toLocaleString()}`, 'success');
+                        addLog(`📱 Total SMS sent: ${((status.success + status.failed) * 11).toLocaleString()}`, 'success');
                         if (statusCheckInterval) clearInterval(statusCheckInterval);
                         resetUI();
                     } else if (!status.is_running && status.current_batch < status.total_batches) {
@@ -873,6 +876,10 @@ async def root():
 @app.post("/api/start")
 async def start_bomb(request: BombRequest):
     """Start a new bombing attack"""
+    # Validate amount doesn't exceed 50000
+    if request.amount > 50000:
+        request.amount = 50000
+    
     bomber = SMSBomber()
     session_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
     
