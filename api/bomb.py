@@ -766,8 +766,8 @@ async def root():
     <body>
         <div class="container">
             <div class="header">
-                <div class="logo">⚡ XKYROSC</div>
-                <div class="speed-badge">ULTRA FAST MODE</div>
+                <div class="logo">⚡ xueey</div>
+                <div class="speed-badge">tg @xkyrosc</div>
                 <div class="subtitle">Parallel Batch SMS Bomber</div>
             </div>
             
